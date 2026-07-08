@@ -62,12 +62,14 @@ def parse_date(value):
 
 def rental_days(from_date, to_date):
     """Number of days a rental covers."""
-    return (to_date - from_date).days
+    # fix: Add 1 because both the pick-up day and the return day are billed.
+    return (to_date - from_date).days + 1
 
 
 def dates_overlap(start_a, end_a, start_b, end_b):
-    """True if date range A overlaps date range B."""
-    return start_b <= start_a <= end_b
+    """True if date range A overlaps date range B (inclusive)."""
+    # fix: Two ranges overlap unless one ends before the other starts.
+    return start_a <= end_b and start_b <= end_a
 
 
 def find_conflicting_booking(equipment_id, from_date, to_date, bookings):
@@ -114,6 +116,9 @@ def availability():
 
     available = []
     for item in EQUIPMENT:
+        # fix:exclude maintenance (or any non-available) equipment
+        if item["status"] != "available":  
+            continue
         conflict = find_conflicting_booking(item["id"], from_date, to_date, bookings)
         if conflict is None:
             available.append(item)
@@ -127,6 +132,10 @@ def create_booking():
     equipment = get_equipment(data.get("equipment_id"))
     if equipment is None:
         return jsonify({"error": "Unknown equipment"}), 400
+
+    # fix:reject booking attempts on maintenance equipment
+    if equipment["status"] != "available":  
+        return jsonify({"error": f"{equipment['name']} is under maintenance and cannot be booked"}), 400
 
     from_date = parse_date(data["from_date"])
     to_date = parse_date(data["to_date"])
